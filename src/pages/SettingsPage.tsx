@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { LogoGrid } from "../components/LogoGrid";
 import { AboutUpdatesCard } from "../components/AboutUpdatesCard";
+import { ArchiveCard } from "../components/ArchiveCard";
 import { useLogo } from "../contexts/LogoContext";
 import { useProjects } from "../contexts/ProjectsContext";
 
@@ -104,6 +105,7 @@ export function SettingsPage() {
           )}
         </section>
 
+        <ArchiveCard />
         <AboutUpdatesCard />
       </section>
     </section>

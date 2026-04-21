@@ -1,16 +1,11 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
-import type { GeneratedPdf, Project, ArtworkOverride } from "../types";
-import {
-  addPdfToProject as storeAddPdf,
-  loadProjects,
-  removePdfFromProject as storeRemovePdf,
-  removeProject as storeRemoveProject,
-  upsertProject as storeUpsertProject,
-} from "../lib/store";
+import type { ArtworkOverride, GeneratedPdf, Project } from "../types";
+import { useArchive } from "./ArchiveProvider";
 
 type ProjectsContextValue = {
   projects: Project[];
+  ready: boolean;
   getProject: (id: string) => Project | undefined;
   upsertProject: (project: Project) => void;
   removeProject: (id: string) => void;
@@ -19,75 +14,94 @@ type ProjectsContextValue = {
   updateOverride: (projectId: string, path: string, override: ArtworkOverride) => void;
   updateImages: (projectId: string, updater: (images: string[]) => string[]) => void;
   allImagePaths: () => string[];
-  refresh: () => void;
 };
 
 const ProjectsContext = createContext<ProjectsContextValue | null>(null);
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>(() => loadProjects());
+  const { state, ready, update } = useArchive();
+  const projects = state.projects;
 
-  const refresh = useCallback(() => setProjects(loadProjects()), []);
+  const sortedProjects = useMemo(
+    () => [...projects].sort((a, b) => b.addedAt - a.addedAt),
+    [projects],
+  );
 
   const getProject = useCallback(
     (id: string) => projects.find((p) => p.id === id),
     [projects],
   );
 
-  const upsertProject = useCallback((project: Project) => {
-    storeUpsertProject(project);
-    setProjects(loadProjects());
-  }, []);
+  const upsertProject = useCallback(
+    (project: Project) => {
+      update((prev) => {
+        const idx = prev.projects.findIndex((p) => p.id === project.id);
+        const next = [...prev.projects];
+        if (idx >= 0) next[idx] = project;
+        else next.push(project);
+        return { ...prev, projects: next };
+      });
+    },
+    [update],
+  );
 
-  const removeProject = useCallback((id: string) => {
-    storeRemoveProject(id);
-    setProjects(loadProjects());
-  }, []);
+  const removeProject = useCallback(
+    (id: string) => {
+      update((prev) => ({ ...prev, projects: prev.projects.filter((p) => p.id !== id) }));
+    },
+    [update],
+  );
 
-  const addPdf = useCallback((projectId: string, pdf: GeneratedPdf) => {
-    storeAddPdf(projectId, pdf);
-    setProjects(loadProjects());
-  }, []);
+  const addPdf = useCallback(
+    (projectId: string, pdf: GeneratedPdf) => {
+      update((prev) => ({
+        ...prev,
+        projects: prev.projects.map((p) =>
+          p.id === projectId ? { ...p, pdfs: [pdf, ...p.pdfs] } : p,
+        ),
+      }));
+    },
+    [update],
+  );
 
-  const removePdf = useCallback((projectId: string, pdfId: string) => {
-    storeRemovePdf(projectId, pdfId);
-    setProjects(loadProjects());
-  }, []);
+  const removePdf = useCallback(
+    (projectId: string, pdfId: string) => {
+      update((prev) => ({
+        ...prev,
+        projects: prev.projects.map((p) =>
+          p.id === projectId ? { ...p, pdfs: p.pdfs.filter((x) => x.id !== pdfId) } : p,
+        ),
+      }));
+    },
+    [update],
+  );
 
   const updateOverride = useCallback(
     (projectId: string, path: string, override: ArtworkOverride) => {
-      setProjects((current) => {
-        const next = current.map((p) => {
+      update((prev) => ({
+        ...prev,
+        projects: prev.projects.map((p) => {
           if (p.id !== projectId) return p;
           const nextOverrides = { ...p.overrides, [path]: { ...p.overrides[path], ...override } };
-          const updated = { ...p, overrides: nextOverrides };
-          storeUpsertProject(updated);
-          return updated;
-        });
-        return next;
-      });
+          return { ...p, overrides: nextOverrides };
+        }),
+      }));
     },
-    [],
+    [update],
   );
 
   const updateImages = useCallback(
     (projectId: string, updater: (images: string[]) => string[]) => {
-      setProjects((current) => {
-        const next = current.map((p) => {
+      update((prev) => ({
+        ...prev,
+        projects: prev.projects.map((p) => {
           if (p.id !== projectId) return p;
           const imagePaths = updater(p.imagePaths);
-          const updated: Project = {
-            ...p,
-            imagePaths,
-            previewPaths: imagePaths.slice(0, 4),
-          };
-          storeUpsertProject(updated);
-          return updated;
-        });
-        return next;
-      });
+          return { ...p, imagePaths, previewPaths: imagePaths.slice(0, 4) };
+        }),
+      }));
     },
-    [],
+    [update],
   );
 
   const allImagePaths = useCallback(() => {
@@ -105,7 +119,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<ProjectsContextValue>(
     () => ({
-      projects,
+      projects: sortedProjects,
+      ready,
       getProject,
       upsertProject,
       removeProject,
@@ -114,9 +129,19 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       updateOverride,
       updateImages,
       allImagePaths,
-      refresh,
     }),
-    [projects, getProject, upsertProject, removeProject, addPdf, removePdf, updateOverride, updateImages, allImagePaths, refresh],
+    [
+      sortedProjects,
+      ready,
+      getProject,
+      upsertProject,
+      removeProject,
+      addPdf,
+      removePdf,
+      updateOverride,
+      updateImages,
+      allImagePaths,
+    ],
   );
 
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;

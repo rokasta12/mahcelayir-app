@@ -3,7 +3,8 @@ import fontkit from "@pdf-lib/fontkit";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
-import { resolveResource } from "@tauri-apps/api/path";
+import { resolveResource, join as joinPath } from "@tauri-apps/api/path";
+import { getPdfsDir } from "./archive";
 import type { Artwork } from "../types";
 
 const A4_WIDTH = 595.28;
@@ -76,12 +77,28 @@ export type GenerateResult = {
   skipped: { filename: string; reason: string }[];
 };
 
-export async function generatePdf(artworks: Artwork[]): Promise<GenerateResult | null> {
+function sanitizeFilename(name: string): string {
+  return name.replace(/[\\/:*?"<>|]/g, "-").trim() || "katalog";
+}
+
+export async function generatePdf(artworks: Artwork[], projectName?: string): Promise<GenerateResult | null> {
   const valid = artworks.filter((a) => a.valid);
   if (valid.length === 0) throw new Error("No valid artworks to include.");
 
+  // Default into the archive's pdfs/ subfolder so uncle always knows where
+  // catalogs live. User can still pick elsewhere via the save dialog.
+  let defaultPath = "katalog.pdf";
+  try {
+    const pdfsDir = await getPdfsDir();
+    const base = projectName ? sanitizeFilename(projectName) : "katalog";
+    const stamp = new Date().toISOString().slice(0, 10);
+    defaultPath = await joinPath(pdfsDir, `${base}-${stamp}.pdf`);
+  } catch {
+    /* fall through to plain filename — dialog will still work */
+  }
+
   const outputPath = await save({
-    defaultPath: "artworks.pdf",
+    defaultPath,
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
   if (!outputPath) return null;

@@ -74,7 +74,7 @@ export function ProjectEditPage() {
     setIsGenerating(true);
     setStatus({ message: "Building pages…", kind: "" });
     try {
-      const result = await generatePdf(artworks);
+      const result = await generatePdf(artworks, project.name);
       if (!result) {
         setStatus({ message: "", kind: "" });
         return;

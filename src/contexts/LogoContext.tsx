@@ -1,20 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  clearCachedPoolPaths,
-  clearLogoPath,
-  getCachedPoolPaths,
-  getSavedLogoPath,
-  hasAutoCropped,
-  markAutoCropped,
-  resetAutoCropFlag,
-  saveCachedPoolPaths,
-  saveLogoPath,
-  streamCropBytes,
-} from "../lib/cropLogo";
-import { clearCropFiles, listCropFiles, saveCropToFile } from "../lib/nativePool";
+import { clearCrops, listCrops, saveCrop } from "../lib/archive";
+import { streamCropBytes } from "../lib/cropLogo";
 import { composeDockIcon } from "../lib/iconComposer";
+import { useArchive } from "./ArchiveProvider";
 import { useProjects } from "./ProjectsContext";
 
 async function applyDockIcon(path: string | null): Promise<void> {
@@ -23,7 +13,7 @@ async function applyDockIcon(path: string | null): Promise<void> {
     const iconPath = await composeDockIcon(path);
     await invoke("set_dock_icon", { path: iconPath });
   } catch {
-    /* ignore — non-macOS or initialization race */
+    /* non-macOS or init race — silent */
   }
 }
 
@@ -43,68 +33,63 @@ type LogoContextValue = {
 const LogoContext = createContext<LogoContextValue | null>(null);
 
 export function LogoProvider({ children }: { children: ReactNode }) {
+  const { state, ready, update } = useArchive();
   const { allImagePaths } = useProjects();
-  const [logo, setLogoState] = useState<string | null>(() => getSavedLogoPath());
-  const [pool, setPool] = useState<string[]>(() => getCachedPoolPaths());
+
+  const [pool, setPool] = useState<string[]>([]);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateProgress, setRegenerateProgress] = useState(0);
 
   const regenRef = useRef<AbortController | null>(null);
   const autoRunRef = useRef(false);
+  const initRef = useRef(false);
 
-  // If localStorage has paths but the disk lost them, reconcile at mount.
+  const logo = state.logoCurrent;
+
+  // Initial load of pool from archive folder.
   useEffect(() => {
-    if (pool.length === 0) return;
+    if (!ready || initRef.current) return;
+    initRef.current = true;
     let cancelled = false;
-    listCropFiles().then((onDisk) => {
-      if (cancelled || onDisk.length === pool.length) return;
-      const onDiskSet = new Set(onDisk);
-      const stillHere = pool.filter((p) => onDiskSet.has(p));
-      if (stillHere.length !== pool.length) {
-        setPool(stillHere);
-        saveCachedPoolPaths(stillHere);
-        if (logo && !onDiskSet.has(logo)) {
-          clearLogoPath();
-          setLogoState(null);
+    listCrops()
+      .then((crops) => {
+        if (cancelled) return;
+        setPool(crops);
+        // Reconcile: if saved logo no longer exists on disk, clear it.
+        if (logo && !crops.includes(logo)) {
+          update({ logoCurrent: null });
         }
-      }
-    });
+      })
+      .catch((err) => console.error("[logo] listCrops failed:", err));
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready, logo, update]);
 
-  const setLogo = useCallback((path: string) => {
-    saveLogoPath(path);
-    markAutoCropped();
-    setLogoState(path);
-    void applyDockIcon(path);
-  }, []);
+  // Push saved logo to macOS Dock on mount (once).
+  useEffect(() => {
+    if (!ready || !logo) return;
+    void applyDockIcon(logo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  const setLogo = useCallback(
+    (path: string) => {
+      update({ logoCurrent: path, autoSeeded: true });
+      void applyDockIcon(path);
+    },
+    [update],
+  );
 
   const resetLogo = useCallback(() => {
-    // Never fall back to the plain M when real art is available — re-roll
-    // a random crop from the existing pool. Only clear to null as a true
-    // last resort when there are literally no fragments to choose from.
     if (pool.length > 0) {
       const next = pool[Math.floor(Math.random() * pool.length)];
-      saveLogoPath(next);
-      markAutoCropped();
-      setLogoState(next);
+      update({ logoCurrent: next, autoSeeded: true });
       void applyDockIcon(next);
       return;
     }
-    clearLogoPath();
-    markAutoCropped();
-    setLogoState(null);
-  }, [pool]);
-
-  // On mount, push the saved logo to the macOS Dock icon.
-  useEffect(() => {
-    if (!logo) return;
-    void applyDockIcon(logo);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    update({ logoCurrent: null, autoSeeded: true });
+  }, [pool, update]);
 
   const regeneratePool = useCallback(async () => {
     const paths = allImagePaths();
@@ -115,7 +100,7 @@ export function LogoProvider({ children }: { children: ReactNode }) {
     setIsRegenerating(true);
     setRegenerateProgress(0);
 
-    await clearCropFiles();
+    await clearCrops();
     const collected: string[] = [];
 
     try {
@@ -123,38 +108,29 @@ export function LogoProvider({ children }: { children: ReactNode }) {
         signal: controller.signal,
         onCrop: async (bytes, index) => {
           if (controller.signal.aborted) return;
-          const filePath = await saveCropToFile(bytes, index - 1);
+          const filePath = await saveCrop(bytes, index - 1);
           collected.push(filePath);
           setPool([...collected]);
           setRegenerateProgress(index);
         },
       });
     } catch {
-      /* streaming aborted or partial — keep whatever we got */
+      /* partial — keep what we have */
     } finally {
-      // Always persist whatever was collected — never leave the user with
-      // empty pool after their old files were deleted.
-      if (collected.length > 0) {
-        saveCachedPoolPaths(collected);
-      } else {
-        clearCachedPoolPaths();
-        setPool([]);
-      }
-      if (regenRef.current === controller) {
-        setIsRegenerating(false);
-      }
+      if (regenRef.current === controller) setIsRegenerating(false);
+      if (collected.length === 0) setPool([]);
     }
   }, [allImagePaths]);
 
-  // Auto-seed pool + logo exactly once after the user has images.
+  // Auto-seed pool + logo once after the user has images.
   useEffect(() => {
-    if (autoRunRef.current) return;
-    const paths = allImagePaths();
-    if (paths.length === 0) return;
-    if (hasAutoCropped()) {
+    if (!ready || autoRunRef.current) return;
+    if (state.autoSeeded) {
       autoRunRef.current = true;
       return;
     }
+    const paths = allImagePaths();
+    if (paths.length === 0) return;
     autoRunRef.current = true;
 
     const controller = new AbortController();
@@ -166,25 +142,23 @@ export function LogoProvider({ children }: { children: ReactNode }) {
           signal: controller.signal,
           onCrop: async (bytes, index) => {
             if (controller.signal.aborted) return;
-            const filePath = await saveCropToFile(bytes, index - 1);
+            const filePath = await saveCrop(bytes, index - 1);
             collected.push(filePath);
             setPool([...collected]);
             setRegenerateProgress(index);
           },
         });
         if (controller.signal.aborted || collected.length === 0) return;
-        saveCachedPoolPaths(collected);
-        saveLogoPath(collected[0]);
-        markAutoCropped();
-        setLogoState(collected[0]);
-        void applyDockIcon(collected[0]);
+        const first = collected[0];
+        update({ logoCurrent: first, autoSeeded: true });
+        void applyDockIcon(first);
       } catch {
-        /* silent — typographic fallback stays */
+        /* silent */
       }
     })();
 
     return () => controller.abort();
-  }, [allImagePaths]);
+  }, [ready, state.autoSeeded, allImagePaths, update]);
 
   const poolReady = pool.length > 0;
 
@@ -209,11 +183,4 @@ export function useLogo(): LogoContextValue {
   const ctx = useContext(LogoContext);
   if (!ctx) throw new Error("useLogo must be used within LogoProvider");
   return ctx;
-}
-
-export function hardResetLogoState(): void {
-  clearLogoPath();
-  clearCachedPoolPaths();
-  resetAutoCropFlag();
-  clearCropFiles().catch(() => undefined);
 }

@@ -1878,3 +1878,55 @@ button.primary svg { width: 16px; height: 16px; }
   outline: 2px solid var(--accent, #2a6df4);
   outline-offset: 2px;
 }
+
+/* ── Archive folder card ─────────────────────────────── */
+
+.archive-info {
+  margin: 4px 0 12px;
+  padding: 12px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.archive-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.archive-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  min-width: 70px;
+}
+
+.archive-path {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--text);
+  font-size: 12px;
+  background: var(--bg);
+  padding: 4px 8px;
+  border-radius: 4px;
+  word-break: break-all;
+  border: 1px solid var(--border);
+}
+
+.archive-meta {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.archive-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

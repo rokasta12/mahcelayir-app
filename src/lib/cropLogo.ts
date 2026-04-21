@@ -1,8 +1,8 @@
+// Pure image-cropping logic — takes source image paths, produces random
+// square JPEG crops as bytes. Persistence is handled by the archive module.
+
 import { convertFileSrc } from "@tauri-apps/api/core";
 
-const SELECTION_KEY = "mcelayir.logo.selection.v2";
-const POOL_PATHS_KEY = "mcelayir.logo.pool.paths.v1";
-const AUTOCROP_FLAG = "mcelayir.logo.autocrop.done.v2";
 const OUT_SIZE = 192;
 
 async function loadImageFromPath(imagePath: string): Promise<HTMLImageElement> {
@@ -92,65 +92,4 @@ export async function streamCropBytes(
   }
 
   return produced;
-}
-
-// ── localStorage helpers for the (tiny) metadata ─────────
-
-export function getSavedLogoPath(): string | null {
-  try {
-    return localStorage.getItem(SELECTION_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function saveLogoPath(path: string): void {
-  localStorage.setItem(SELECTION_KEY, path);
-}
-
-export function clearLogoPath(): void {
-  localStorage.removeItem(SELECTION_KEY);
-}
-
-type PoolEnvelope = { schemaVersion: number; paths: string[] };
-const POOL_VERSION = 1;
-
-export function getCachedPoolPaths(): string[] {
-  try {
-    const raw = localStorage.getItem(POOL_PATHS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed; // legacy shape
-    if (parsed && typeof parsed === "object" && "paths" in parsed && Array.isArray(parsed.paths)) {
-      return parsed.paths;
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveCachedPoolPaths(paths: string[]): void {
-  try {
-    const env: PoolEnvelope = { schemaVersion: POOL_VERSION, paths };
-    localStorage.setItem(POOL_PATHS_KEY, JSON.stringify(env));
-  } catch {
-    /* quota guard — unlikely at just paths */
-  }
-}
-
-export function clearCachedPoolPaths(): void {
-  localStorage.removeItem(POOL_PATHS_KEY);
-}
-
-export function hasAutoCropped(): boolean {
-  return localStorage.getItem(AUTOCROP_FLAG) === "1";
-}
-
-export function markAutoCropped(): void {
-  localStorage.setItem(AUTOCROP_FLAG, "1");
-}
-
-export function resetAutoCropFlag(): void {
-  localStorage.removeItem(AUTOCROP_FLAG);
 }

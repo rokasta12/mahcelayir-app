@@ -1,3 +1,5 @@
+mod archive;
+
 #[cfg(target_os = "macos")]
 #[tauri::command]
 fn set_dock_icon(path: String) -> Result<(), String> {
@@ -32,7 +34,19 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![set_dock_icon])
+        .invoke_handler(tauri::generate_handler![
+            set_dock_icon,
+            archive::archive_resolve_dir,
+            archive::archive_relocate,
+            archive::archive_read,
+            archive::archive_write,
+            archive::archive_write_legacy_backup,
+            archive::archive_save_crop,
+            archive::archive_list_crops,
+            archive::archive_clear_crops,
+            archive::archive_pdfs_dir,
+            archive::archive_stats,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { ArchiveProvider } from "./contexts/ArchiveProvider";
 import { ProjectsProvider } from "./contexts/ProjectsContext";
 import { LogoProvider } from "./contexts/LogoContext";
 import { PdfPanelProvider, usePdfPanel } from "./contexts/PdfPanelContext";
@@ -69,15 +70,17 @@ export function App() {
   return (
     <ErrorBoundary>
       <UpdateProvider>
-        <ProjectsProvider>
-          <LogoProvider>
-            <PdfPanelProvider>
-              <DragOverlay />
-              <UpdateBanner />
-              <AppShell />
-            </PdfPanelProvider>
-          </LogoProvider>
-        </ProjectsProvider>
+        <ArchiveProvider>
+          <ProjectsProvider>
+            <LogoProvider>
+              <PdfPanelProvider>
+                <DragOverlay />
+                <UpdateBanner />
+                <AppShell />
+              </PdfPanelProvider>
+            </LogoProvider>
+          </ProjectsProvider>
+        </ArchiveProvider>
       </UpdateProvider>
     </ErrorBoundary>
   );
