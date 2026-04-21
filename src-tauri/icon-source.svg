@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e1a17"/>
+      <stop offset="100%" stop-color="#0a0906"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+  <line x1="220" y1="260" x2="804" y2="260" stroke="#f0ece4" stroke-width="6" opacity="0.55"/>
+  <text x="512" y="720" font-family="Didot, 'Bodoni 72', Georgia, serif" font-size="620" font-weight="400" text-anchor="middle" fill="#f0ece4">M</text>
+  <line x1="220" y1="780" x2="804" y2="780" stroke="#f0ece4" stroke-width="6" opacity="0.55"/>
+  <text x="512" y="860" font-family="Didot, 'Bodoni 72', Georgia, serif" font-size="52" font-weight="400" letter-spacing="12" text-anchor="middle" fill="#f0ece4" opacity="0.75">CELAYIR</text>
+</svg>
