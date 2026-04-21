@@ -4,14 +4,17 @@ import { SettingsButton } from "../components/SettingsButton";
 import { ArtworkRow } from "../components/ArtworkRow";
 import { GeneratedPdfList } from "../components/GeneratedPdfList";
 import { ImageViewer } from "../components/ImageViewer";
+import { QualityPicker } from "../components/QualityPicker";
 import { useProjects } from "../contexts/ProjectsContext";
 import { usePdfPanel } from "../contexts/PdfPanelContext";
+import { useArchive } from "../contexts/ArchiveProvider";
 import { useArtworks } from "../hooks/useArtworks";
 import { useDragDrop } from "../hooks/useDragDrop";
 import { basename, expandPaths, pickImageFiles } from "../lib/tauriFiles";
 import { generatePdf } from "../lib/generatePdf";
 import { genId } from "../lib/id";
 import type { GeneratedPdf } from "../types";
+import type { PdfQualityTier } from "../lib/archive";
 
 export function ProjectEditPage() {
   const { id = "" } = useParams();
@@ -24,6 +27,12 @@ export function ProjectEditPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [viewingImageIdx, setViewingImageIdx] = useState<number | null>(null);
   const { show: showPdf } = usePdfPanel();
+  const { state: archiveState, update: updateArchive } = useArchive();
+  const tier = archiveState.pdfQualityTier ?? "medium";
+  const setTier = useCallback(
+    (next: PdfQualityTier) => updateArchive({ pdfQualityTier: next }),
+    [updateArchive],
+  );
 
   const validCount = useMemo(() => artworks.filter((a) => a.valid).length, [artworks]);
   const invalidCount = artworks.length - validCount;
@@ -74,7 +83,7 @@ export function ProjectEditPage() {
     setIsGenerating(true);
     setStatus({ message: "Building pages…", kind: "" });
     try {
-      const result = await generatePdf(artworks, project.name);
+      const result = await generatePdf(artworks, project.name, tier);
       if (!result) {
         setStatus({ message: "", kind: "" });
         return;
@@ -98,7 +107,7 @@ export function ProjectEditPage() {
     } finally {
       setIsGenerating(false);
     }
-  }, [project, artworks, addPdf]);
+  }, [project, artworks, addPdf, showPdf, tier]);
 
   if (!project) {
     return (
@@ -167,6 +176,7 @@ export function ProjectEditPage() {
 
       <footer className="app-footer">
         <div className={`status ${status.kind}`}>{status.message}</div>
+        <QualityPicker value={tier} onChange={setTier} disabled={isGenerating} />
         <button type="button" className="primary" disabled={validCount === 0 || isGenerating} onClick={handleGenerate}>
           {isGenerating ? (
             <span className="spinner" />

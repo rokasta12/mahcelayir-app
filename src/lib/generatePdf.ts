@@ -7,11 +7,17 @@ import { resolveResource, join as joinPath } from "@tauri-apps/api/path";
 import { getPdfsDir } from "./archive";
 import type { Artwork } from "../types";
 
-// Max long-edge for embedded images. 2000px is roughly 3× the effective
-// resolution of A4 at 150 DPI — sharp on Retina, reasonable print quality,
-// keeps catalogs under ~20MB for 30 images.
-const PDF_IMAGE_MAX_DIM = 2000;
-const PDF_JPEG_QUALITY = 82;
+export type QualityTier = "lossless" | "high" | "medium" | "low";
+export const DEFAULT_QUALITY_TIER: QualityTier = "medium";
+
+type CompressedImage = {
+  bytes: number[];
+  format: "jpg" | "png";
+  width: number;
+  height: number;
+  source_size: number;
+  output_size: number;
+};
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -31,16 +37,10 @@ async function loadFont(doc: PDFDocument, filename: string): Promise<PDFFont> {
   return await doc.embedFont(bytes, { subset: true });
 }
 
-async function embedArtworkImage(doc: PDFDocument, path: string) {
-  // Rust side decodes any format, downsamples to PDF_IMAGE_MAX_DIM long edge,
-  // and returns JPEG bytes. Always JPEG here — no format sniffing needed.
-  const rawBytes = await invoke<number[]>("image_compress_for_pdf", {
-    path,
-    maxDim: PDF_IMAGE_MAX_DIM,
-    quality: PDF_JPEG_QUALITY,
-  });
-  const bytes = new Uint8Array(rawBytes);
-  return await doc.embedJpg(bytes);
+async function embedArtworkImage(doc: PDFDocument, path: string, tier: QualityTier) {
+  const result = await invoke<CompressedImage>("image_compress_for_pdf", { path, tier });
+  const bytes = new Uint8Array(result.bytes);
+  return result.format === "png" ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
 }
 
 function drawCaption(
@@ -86,13 +86,18 @@ export type GenerateResult = {
   path: string;
   artworkCount: number;
   skipped: { filename: string; reason: string }[];
+  tier: QualityTier;
 };
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, "-").trim() || "katalog";
 }
 
-export async function generatePdf(artworks: Artwork[], projectName?: string): Promise<GenerateResult | null> {
+export async function generatePdf(
+  artworks: Artwork[],
+  projectName?: string,
+  tier: QualityTier = DEFAULT_QUALITY_TIER,
+): Promise<GenerateResult | null> {
   const valid = artworks.filter((a) => a.valid);
   if (valid.length === 0) throw new Error("No valid artworks to include.");
 
@@ -132,7 +137,7 @@ export async function generatePdf(artworks: Artwork[], projectName?: string): Pr
   for (const artwork of valid) {
     let img;
     try {
-      img = await embedArtworkImage(doc, artwork.path);
+      img = await embedArtworkImage(doc, artwork.path, tier);
     } catch (err) {
       skipped.push({
         filename: artwork.filename,
@@ -163,5 +168,5 @@ export async function generatePdf(artworks: Artwork[], projectName?: string): Pr
 
   const pdfBytes = await doc.save();
   await writeFile(outputPath, pdfBytes);
-  return { path: outputPath, artworkCount: embedded, skipped };
+  return { path: outputPath, artworkCount: embedded, skipped, tier };
 }

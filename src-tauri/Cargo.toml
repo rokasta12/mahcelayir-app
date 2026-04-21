@@ -27,6 +27,7 @@ tauri-plugin-fs = "2.5.0"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "tiff", "bmp"] }
+mozjpeg = { version = "0.10.13", features = ["with_simd", "parallel"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"

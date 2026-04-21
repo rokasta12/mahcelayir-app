@@ -6,6 +6,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import type { GeneratedPdf, Project } from "../types";
 
+export type PdfQualityTier = "lossless" | "high" | "medium" | "low";
+
 export type ArchiveSchemaV1 = {
   schemaVersion: 1;
   writtenAt: string;
@@ -13,6 +15,7 @@ export type ArchiveSchemaV1 = {
   projects: Project[];
   logoCurrent: string | null;
   autoSeeded: boolean;
+  pdfQualityTier?: PdfQualityTier;
 };
 
 export type ArchiveState = ArchiveSchemaV1;
@@ -73,6 +76,7 @@ export function emptyState(appVersion: string): ArchiveState {
     projects: [],
     logoCurrent: null,
     autoSeeded: false,
+    pdfQualityTier: "medium",
   };
 }
 
