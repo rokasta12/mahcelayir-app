@@ -1,11 +1,17 @@
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { resolveResource, join as joinPath } from "@tauri-apps/api/path";
 import { getPdfsDir } from "./archive";
 import type { Artwork } from "../types";
+
+// Max long-edge for embedded images. 2000px is roughly 3× the effective
+// resolution of A4 at 150 DPI — sharp on Retina, reasonable print quality,
+// keeps catalogs under ~20MB for 30 images.
+const PDF_IMAGE_MAX_DIM = 2000;
+const PDF_JPEG_QUALITY = 82;
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -26,9 +32,14 @@ async function loadFont(doc: PDFDocument, filename: string): Promise<PDFFont> {
 }
 
 async function embedArtworkImage(doc: PDFDocument, path: string) {
-  const bytes = await fetchBytes(convertFileSrc(path));
-  const lower = path.toLowerCase();
-  if (lower.endsWith(".png")) return await doc.embedPng(bytes);
+  // Rust side decodes any format, downsamples to PDF_IMAGE_MAX_DIM long edge,
+  // and returns JPEG bytes. Always JPEG here — no format sniffing needed.
+  const rawBytes = await invoke<number[]>("image_compress_for_pdf", {
+    path,
+    maxDim: PDF_IMAGE_MAX_DIM,
+    quality: PDF_JPEG_QUALITY,
+  });
+  const bytes = new Uint8Array(rawBytes);
   return await doc.embedJpg(bytes);
 }
 

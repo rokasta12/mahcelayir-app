@@ -1,4 +1,5 @@
 mod archive;
+mod imagecompress;
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -46,6 +47,7 @@ pub fn run() {
             archive::archive_clear_crops,
             archive::archive_pdfs_dir,
             archive::archive_stats,
+            imagecompress::image_compress_for_pdf,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
