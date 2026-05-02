@@ -4,10 +4,14 @@ Merhaba! Bu uygulama eserlerinizi düzenlemek ve PDF kataloglar oluşturmak içi
 
 ## Kurulum
 
-1. Gönderdiğim `.dmg` dosyasına çift tıklayın
-2. Açılan pencerede **Mahmut Celayir** ikonunu **Applications** klasörüne sürükleyin
-3. Launchpad'e gidin ve ikonu bulup açın
-4. Bu kadar — artık hazır
+1. Gönderdiğim `.dmg` dosyasına çift tıkla
+2. Açılan pencerede **Mahmut Celayir** ikonunu **Applications** klasörüne sürükle
+3. Launchpad'den ikonu bulup aç
+
+> **macOS 15 (Sequoia) kullanıyorsan**, ilk açılışta "hasarlı" hatası alabilirsin.
+> Bu normal — Apple sertifikası henüz olmadığı için. Çözümü 30 saniye:
+> **`UNBLOCK-uncle-tr.md`** dosyasını aç ve oradaki **Yöntem 1**'i izle.
+> Bir kerelik. Sonrasında her zaman normal açılır.
 
 ## Nasıl Kullanılır
 
